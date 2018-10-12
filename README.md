@@ -174,7 +174,7 @@ contained in the package into the shared system directories and also start that 
 version as a service binding to port 8529 and using the database directory `/var/lib/arangodb3`.
 This is normally not what is desired when multiple instances should be run.
 
-In this case, rather use the .tar.gz packages provided on the [ArangoDB download page](https://download.arangodb.com/),
+In this case, rather use the .tar.gz packages provided on the [ArangoDB download page](https://www.arangodb.com/download-major/),
 use the ArangoDB starter, compile ArangoDB yourself, or use some other custom deploy mechanism.
 
 Whenever running multiple ArangoDB processes in parallel on the same host, please make sure they
