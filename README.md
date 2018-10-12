@@ -8,6 +8,7 @@ This is an opinionated collection of unofficial FAQs, recipes and tips for the
   * [How to fix a broken build directory?](#how-to-fix-a-broken-build-directory)
   * [What are the most common build options?](#what-are-the-most-common-build-options)
   * [I compiled with ASan, TSan etc. but it doesn't work!?](#i-compiled-with-asan-tsan-etc-but-it-doesnt-work)
+  * [How to work with multiple versions of ArangoDB?](#how-to-work-with-multiple-versions-of-arangodb)
 * [Inspection](#inspection)
   * [How to find out which version of ArangoDB I am running?](#how-to-find-out-which-version-of-arangodb-i-am-running)
   * [What are the available startup parameters of ArangoDB](#what-are-the-available-startup-parameters-of-arangodb)
@@ -156,7 +157,30 @@ option to `Off`:
 ```bash
 (cd build && cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_JEMALLOC=Off ..)
 (cd build && make -j16)
-``` 
+```
+
+### How to work with multiple versions of ArangoDB?
+
+Having multiple versions of ArangoDB on the same host is not a problem in general, but requires
+some caution.
+
+In case multiple different versions shall be used on the same machine, don't use commands such as
+`make install` from an ArangoDB build directory, as one version will happily overwrite the data
+of another. Instead, use local build directories and start the different versions from inside there,
+without clobbering the shared system directories.
+
+Using one of the official ArangoDB release packages will always install the ArangoDB version
+contained in the package into the shared system directories and also start that particular 
+version as a service binding to port 8529 and using the database directory `/var/lib/arangodb3`.
+This is normally not what is desired when multiple instances should be run.
+
+In this case, rather use the .tar.gz packages provided on the [ArangoDB download page](https://download.arangodb.com/),
+use the ArangoDB starter, compile ArangoDB yourself, or use some other custom deploy mechanism.
+
+Whenever running multiple ArangoDB processes in parallel on the same host, please make sure they
+are configured to bind to different ports and use different database directories. Otherwise the 
+processes will refuse to start.
+
 
 ## Inspection
 
