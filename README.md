@@ -3,6 +3,16 @@
 This is an opinionated collection of unofficial FAQs, recipes and tips for the 
 [ArangoDB multi-model database](https://www.arangodb.com/).
 
+* [Building ArangoDB](#building-arangodb)
+  * [How to compile ArangoDB from source?](#how-to-compile-arangodb-from-source)
+  * [How to fix a broken build directory?](#how-to-fix-a-broken-build-directory)
+  * [What are the most common build options?](#what-are-the-most-common-build-options)
+  * [I compiled with ASan, TSan etc. but it doesn't work!?](#i-compiled-with-asan-tsan-etc-but-it-doesnt-work)
+* [Inspection](#inspection)
+  * [How to find out which version of ArangoDB I am running?](#how-to-find-out-which-version-of-arangodb-i-am-running)
+  * [What are the available startup parameters of ArangoDB](#what-are-the-available-startup-parameters-of-arangodb)
+  * [What are useful logging options for debugging and developing](#what-are-useful-logging-options-for-debugging-and-developing)
+
 I will add items to this list as I personally see fit.
 
 I am a developer using Linux, so I will most likely curate items here that have more 
