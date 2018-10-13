@@ -1,4 +1,4 @@
-# The Unofficial ArangoDB FAQs
+# The Unofficial ArangoDB FAQs 🥑📖🔥
 
 This is an opinionated collection of unofficial FAQs, recipes and tips for the 
 [ArangoDB multi-model database](https://www.arangodb.com/).
