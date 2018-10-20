@@ -3,30 +3,49 @@
 This is an opinionated collection of unofficial FAQs, recipes and tips for the 
 [ArangoDB multi-model database](https://www.arangodb.com/).
 
-* [Building ArangoDB](#building-arangodb)
+* [Building ArangoDB from source](#building-arangodb-from-source)
   * [How to compile ArangoDB from source?](#how-to-compile-arangodb-from-source)
   * [How to fix a broken build directory?](#how-to-fix-a-broken-build-directory)
   * [What are the most common build options?](#what-are-the-most-common-build-options)
   * [I compiled with ASan, TSan etc. but it doesn't work!?](#i-compiled-with-asan-tsan-etc-but-it-doesnt-work)
   * [How to work with multiple versions of ArangoDB?](#how-to-work-with-multiple-versions-of-arangodb)
+* [Testing and debugging](#testing-and-debugging)
+  * [How to run ArangoDB tests?](#how-to-run-the-arangodb-tests)
+  * [How to run a specific test suite until it fails?](#how-to-run-a-specific-test-suite-until-it-fails)
+  * [How to tap into the HTTP communication between ArangoDB servers?](#how-to-tap-into-the-http-communication-between-arangodb-servers)
 * [Inspection](#inspection)
   * [How to find out which version of ArangoDB I am running?](#how-to-find-out-which-version-of-arangodb-i-am-running)
   * [What are the available startup parameters of ArangoDB](#what-are-the-available-startup-parameters-of-arangodb)
   * [What are useful logging options for debugging and developing](#what-are-useful-logging-options-for-debugging-and-developing)
+* [OS configuration](#os-configuration)
+  * [What are the most important OS settings for ArangoDB?](#what-are-the-most-important-os-settings-for-arangodb)
+* [ArangoDB configuration](#arangodb-configuration)
+  * [How to configure the number of threads?](#how-to-configure-the-number-of-threads)
+  * [How to configure the number of V8 contexts?](#how-to-configure-the-number-of-v8-contexts)
+  * [How to turn off statistics gathering?](#how-to-turn-off-statistics-gathering)
+  * [How to turn off Foxx queues?](#how-to-turn-off-foxx-queues)
 
 I will add items to this list as I personally see fit.
 
 I am a developer using Linux, so I will most likely curate items here that have more 
 relevance for people that like using the command-line rather than fancy user interfaces.
 
-## Building ArangoDB
+This is a personal repository, and everything published here are my personal views and recommendations.
+ArangoDB Inc. may have different official recommendations. 
+Whenever in doubt, I suggest following the company's official recommendations!
+
+
+## Building ArangoDB from source
 
 ### How to compile ArangoDB from source?
 
 As a prerequisite, install CMake and a C++ compiler of your choice (clang++ or g++, recent versions 
-will do), as well as the OpenSSL library's development files.
+will do), as well as python2.7 and the OpenSSL library's development files:
+```bash
+sudo apt install cmake g++ python2.7 libssl-dev
+```
 
-Get the ArangoDB source code by cloning the main ArangoDB Github repository.
+Then get the ArangoDB source code by cloning the main ArangoDB Github repository.
 The default branch is `devel`. If you want to use a different branch (e.g. `3.4`) just clone that.
 The repository has quite some history and with full history it will be more than one GB to download.
 
@@ -181,6 +200,80 @@ Whenever running multiple ArangoDB processes in parallel on the same host, pleas
 are configured to bind to different ports and use different database directories. Otherwise the 
 processes will refuse to start.
 
+## Testing and debugging
+
+### How to run ArangoDB tests?
+
+As a prerequisite for running the tests, please make sure that you have built ArangoDB in maintainer 
+mode. Additionally it is useful to enable failure tests when building, because that will produce
+more tests that can be executed.
+
+To run ArangoDB's bundled tests, run `scripts/unittest all` on the command-line when inside the
+source checkout directory.
+
+This will start single-server tests for the default storage engine, i.e. RocksDB from version 3.4
+onwards, and MMFiles before. To run tests for a different storage engine, use the `--storageEngine`
+option. To run tests for the cluster, use the `--cluster` option.
+
+Here are a few copy&paste snippets for starting tests:
+```bash
+scripts/unittest all --storageEngine mmfiles --cluster false
+scripts/unittest all --storageEngine mmfiles --cluster true
+scripts/unittest all --storageEngine rocksdb --cluster false
+scripts/unittest all --storageEngine rocksdb --cluster true
+```
+
+In contrast to its name, the target `all` does not run all tests, but only the most common ones.
+To get an idea of what tests are included in `all` and which aren't, you can invoke `scripts/unittest`
+without any further parameters. This will show a list of available test suites and whether or not
+each is included in `all`.
+
+Some important tests that are missing in `all` are the recovery and replication tests. To run them
+too, use something like
+```bash
+scripts/unittest all recovery shell_replication http_replication replication_sync replication_static replication_ongoing replication_random replication_aql replication_fuzz --storageEngine mmfiles
+scripts/unittest all recovery shell_replication http_replication replication_sync replication_static replication_ongoing replication_random replication_aql replication_fuzz --storageEngine rocksdb
+```
+Note: these tests only exist in single-server mode.
+
+### How to run a specific test suite until it fails?
+
+If a test fails sporadically or seems non-deterministic, a good way to force failure is to run
+the test in an endless loop until it fails, e.g. by using the following bash script:
+
+```bash
+while true; do 
+  scripts/unittest shell_server --test tests/js/server/shell/shell-skiplist-index.js
+  if [ "$?" -ne "0" ]; then 
+    break; 
+  fi; 
+done
+
+Add some background load to the mix, e.g. by compiling ArangoDB in another directory, and wait
+until the failure occurs again.
+
+### How to create a backtrace of all threads of a running ArangoDB process?
+
+As a prerequisite, you will need to install `gdb`.
+
+You then need to find out the process id (pid) of the arangod process of interest. If there is 
+only arangod process running on the server, you can use `pidof` if installed. Otherwise, just
+insert the process id into the following command:
+
+```bash
+echo "thread apply all bt full" | sudo gdb -p `pidof arangod` > backtrace.out
+```
+
+After that the backtrace data will be stored in file `backtrace.out`.
+
+### How to tap into the HTTP communication between ArangoDB servers?
+
+Though deprecated, `ngrep` will do a good job. If servers are using ports 8530, 8629 and 8630,
+the following command will sniff the communication done via these ports and print it on screen:
+
+```bash
+sudo ngrep -W byline -d lo port 8530 or port 8629 or port 8630
+```
 
 ## Inspection
 
@@ -289,4 +382,125 @@ are most useful:
   agent etc.). use this when looking at the logs of multiple instances in a cluster to tell
   the instances apart more easily by their roles
 
-Note that these options can only be set at server start.
+Note that these options can only be set at server start but not changed at runtime.
+
+
+## OS configuration
+
+### What are the most important OS settings for ArangoDB?
+
+The most important settings for ArangoDB are
+
+* the number of open file descriptors per process: it is essential for normal operations that
+  this value is high enough, i.e. at least 1024 for RocksDB, and even higher for the MMFiles engine.
+  The higher the better. The setting can be adjusted for the current session by using `ulimit -n` 
+  or permanently by setting the `nofile` value for the correct user/group in `/etc/security/limits.conf`
+
+* memory configuration: by default, the Linux kernel will overcommit memory based on some heuristics.
+  When the kernel cannot provide more memory, it may kill memory-hogging processes by invoking its
+  OOM killer. On dedicated database servers, the processes that use most memory are likely `arangod`
+  processes, so the kernel will kill these first to make memory available. To avoid this situation,
+  the kernel setting `overcommit_memory` should be set to a value of `2`. This will make the kernel
+  deny memory allocation requests in case no more memory is available, so that applications can handle
+  the situation more gracefully.
+
+  An `overcommit_memory` value of `2` will make the kernel hand out as much memory as there is swap
+  space available, plus a configurable fraction of physical RAM. This fraction can be adjusted via
+  the `overcommit_ratio` kernel parameter. Please be aware that the default value is only `50`, meaning
+  only 50% of physical RAM will be handed out as committed memory. So it makes sense to increase that
+  ratio a lot, to something around 90.
+
+To view the current memory configuration, use 
+
+```bash
+cat /proc/sys/vm/overcommit_memory 
+cat /proc/sys/vm/overcommit_ratio 
+```
+
+To temporarily adjust these values, use something like:
+```bash
+sudo bash -c "echo 2 > /proc/sys/vm/overcommit_memory"
+sudo bash -c "echo 90 > /proc/sys/vm/overcommit_ratio"
+```
+
+To make these changes durable, persist them in `/etc/sysctl.conf`.
+
+Another important memory-related setting is `max_map_count`, which controls the maximum number of
+memory mappings a process is allowed to have. The kernel default value is something around 64K, which
+may be too low. Raising this value to 1M or even higher is thus strongly recommended for running
+ArangoDB.
+
+Again, setting the value once can be done by patching the file in the `/proc` filesystem directly:
+
+```bash
+sudo bash -c "echo 10000000 > /proc/sys/vm/max_map_count"
+```
+
+The change can be made durable by persisting the change in `/etc/sysctl.conf`.
+
+If you want to enable coredumps, it is advisable to use either `ulimit -c unlimited` for the current
+session, or persist the `core` setting in `/etc/security/limits.conf` for the correct user/group.
+
+
+## ArangoDB configuration
+
+ArangoDB's default settings are reasonable for most use cases. However, a few specific options
+may be fine-tuned.
+
+### How to configure the number of threads?
+
+From ArangoDB 3.4 on, the number of threads of an arangod process can be effectively limited by
+setting the `--server.maximal-threads` value to the desired number of threads. Earlier ArangoDB
+versions also provided this setting, but the effective minimum value for the number of threads
+was always 64, even if a lower value was used in the configuration. ArangoDB 3.4 will honor the
+configured maximum number of threads for its pool of scheduler threads.
+
+### How to configure the number of V8 contexts?
+
+The V8 JavaScript enigne is used inside ArangoDB for executing user-defined Foxx code, AQL
+user-defined functions and a few other places. This is the situation as in ArangoDB 3.4. Earlier
+releases used V8 for several other tasks, for example executing plan changes in the cluster,
+some AQL functons, and some of the standard REST APIs. This means releases before ArangoDB 3.4
+may need more V8 contexts around than 3.4 and higher, in which the usage of V8 is mostly reduced
+to running user-defined code.
+
+Agency nodes and cluster database servers do not need to execute user-defined code, so they are
+started with the V8 engine turned off starting with ArangoDB 3.4 on. There is thus no need to set
+the number of V8 contexts for agency nodes and cluster database servers in 3.4 and higher. For
+single-server instances and cluster coordinator servers, V8 is still needed to run user-defined
+code, serve ArangoDB's web interface and a few other things. Setting the number of V8 contexts for 
+these types of servers is normally not required in 3.4 and higher, as the number of contexts will
+dynamically float based on the number of V8 contexts requested. 
+
+In 3.4, only in case user-defined AQL functions, Foxx or JavaScript transactions are used a lot, 
+it may make sense to adjust the number of V8 contexts by using the following settings. In earlier
+versions of ArangoDB, it may make sense to adjust the number of contexts in more cases, as V8 is
+used for more types of operations there.
+
+The `--javascript.v8-contexts-minimum` value determines the minimum number of contexts that are
+kept around. The setting `--javascript.v8-contexts` determines the maximum number of V8 contexts.
+The actual number of contexts will float between these two settings as needed. Unused contexts
+will be disposed after a while of inactivity until the number of contexts reaches the configured
+lower bound.
+
+Please note that each V8 context requires a significant amount of memory, so the number of contexts
+should not be increased needlessly.
+
+### How to turn off statistics gathering?
+
+By default, arangod servers will periodically gather some statistics and store them in the 
+database. The statistics can be retrieved via a REST API later or be viewed via the web interface.
+If these statistics are of no interest, they can be turned off at server start. ArangoDB will 
+still be functional, yet it will not gather or display any statistics.
+
+The configuration option for turning off the statistics is `--server.statistics true`.
+
+### How to turn off Foxx queues?
+
+Foxx queues are a mechanism for dispatching one-off or recurring user-defined jobs in ArangoDB. 
+By default, arangod servers will periodically check for jobs in Foxx queues every second. This 
+will put a small load on the database which can be avoided if Foxx queues are not used in a 
+particular setup. With the queues turned off, ArangoDB will still be functional, only that it
+will not pick up any jobs dispatched via Foxx queues.
+
+Specifying `--foxx.queues false` when starting the server will turn the queues off.
