@@ -494,7 +494,7 @@ database. The statistics can be retrieved via a REST API later or be viewed via 
 If these statistics are of no interest, they can be turned off at server start. ArangoDB will 
 still be functional, yet it will not gather or display any statistics.
 
-The configuration option for turning off the statistics is `--server.statistics true`.
+The configuration option for turning off the statistics is `--server.statistics false`.
 
 ### How to turn off Foxx queues?
 
