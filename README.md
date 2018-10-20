@@ -10,7 +10,7 @@ This is an opinionated collection of unofficial FAQs, recipes and tips for the
   * [I compiled with ASan, TSan etc. but it doesn't work!?](#i-compiled-with-asan-tsan-etc-but-it-doesnt-work)
   * [How to work with multiple versions of ArangoDB?](#how-to-work-with-multiple-versions-of-arangodb)
 * [Testing and debugging](#testing-and-debugging)
-  * [How to run ArangoDB tests?](#how-to-run-the-arangodb-tests)
+  * [How to run ArangoDB tests?](#how-to-run-arangodb-tests)
   * [How to run a specific test suite until it fails?](#how-to-run-a-specific-test-suite-until-it-fails)
   * [How to tap into the HTTP communication between ArangoDB servers?](#how-to-tap-into-the-http-communication-between-arangodb-servers)
 * [Inspection](#inspection)
