@@ -248,6 +248,7 @@ while true; do
     break; 
   fi; 
 done
+```
 
 Add some background load to the mix, e.g. by compiling ArangoDB in another directory, and wait
 until the failure occurs again.
