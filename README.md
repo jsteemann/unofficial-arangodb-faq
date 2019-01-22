@@ -390,26 +390,51 @@ Note that these options can only be set at server start but not changed at runti
 
 ### What are the most important OS settings for ArangoDB?
 
-The most important settings for ArangoDB are
+The most important OS settings for ArangoDB are:
 
-* the number of open file descriptors per process: it is essential for normal operations that
-  this value is high enough, i.e. at least 1024 for RocksDB, and even higher for the MMFiles engine.
-  The higher the better. The setting can be adjusted for the current session by using `ulimit -n` 
-  or permanently by setting the `nofile` value for the correct user/group in `/etc/security/limits.conf`
+#### memory overcommit settings (vm.overcommit_memory)
 
-* memory configuration: by default, the Linux kernel will overcommit memory based on some heuristics.
-  When the kernel cannot provide more memory, it may kill memory-hogging processes by invoking its
-  OOM killer. On dedicated database servers, the processes that use most memory are likely `arangod`
-  processes, so the kernel will kill these first to make memory available. To avoid this situation,
-  the kernel setting `overcommit_memory` should be set to a value of `2`. This will make the kernel
-  deny memory allocation requests in case no more memory is available, so that applications can handle
-  the situation more gracefully.
+By default, the Linux kernel will hand out more memory to processes than physical RAM is available. 
+Whenever a process asks the kernel for memory, the kernel will very likely hand out a memory region 
+to the process, speculating a bit that not all of the handed-out memory will be used at the very same 
+time. This is the so-called "memory overcommitting".
+  
+While this is fine and will in most cases lead to memory allocation requests being satisfied by
+the kernel, a problem will arise if applications actually start using use a lot of the handed-out 
+memory. In this case the kernel must provide a physical backing for the virtual memory, and if it
+can't (because there is no physical memory left), the application accessing the memory will crash 
+with a SIGBUS signal.
 
-  An `overcommit_memory` value of `2` will make the kernel hand out as much memory as there is swap
-  space available, plus a configurable fraction of physical RAM. This fraction can be adjusted via
-  the `overcommit_ratio` kernel parameter. Please be aware that the default value is only `50`, meaning
-  only 50% of physical RAM will be handed out as committed memory. So it makes sense to increase that
-  ratio a lot, to something around 90.
+How much memory the kernel will actually overcommit depends on some kernel-internal heuristics by 
+default. In addition, when the kernel cannot provide more memory, it may kill memory-hogging processes 
+by invoking its OOM killer. On dedicated database servers, the processes that use most memory are 
+likely `arangod` processes, so the kernel will kill these first to make memory available. 
+ 
+This happens with the default `overcommit_memory` setting of `0`.
+  
+An alternative is to use an `overcommit_memory` setting of `1`, which will make the kernel always
+overcommit memory, but still does not save applications from crashing when they later actually
+access the handed-out memory.
+
+Finally, using an `overcommit_memory` setting of `2` will make the kernel deny memory allocation 
+requests in case no more backing memory is available, so that applications can handle the situation 
+more gracefully. An `overcommit_memory` value of `2` will make the kernel hand out as much memory as 
+there is swap space available, plus a configurable fraction of physical RAM. This fraction can be adjusted 
+via the `overcommit_ratio` kernel parameter. Please be aware that the default value is only `50`, meaning
+only 50% of physical RAM will be handed out as committed memory. So when using an `overcommit_memory`
+mode of `2` it makes sense to increase that `overcommit_ratio` value a lot, to something around 90.
+
+While for some previous versions of ArangoDB it was recommended to set `overcommit_memory` to a 
+value of `2`, this is no longer recommended. A value of `2` will work fine only when not using the
+jemalloc memory allocator, which the official ArangoDB release packages are using since a while.
+The combination of using `overcommit_memory=2` _and_ jemalloc at the same time however turns out to
+have multiple issues, with processes running out of resources much more often than necessary.
+
+Therefore, the recommend setting for `overcommit_memory` is now to leave it at the kernel default
+value of `0`. An `overcommit_memory` value of `1` will also work fine. Use a value of `2` only if
+you have confirmed that you are not using the jemalloc allocator for the ArangoDB build!
+
+Note that you can check the build details for a running ArangoDB instance [like this](#how-to-find-out-which-version-of-arangodb-i-am-running).
 
 To view the current memory configuration, use 
 
@@ -420,13 +445,16 @@ cat /proc/sys/vm/overcommit_ratio
 
 To temporarily adjust these values, use something like:
 ```bash
-sudo bash -c "echo 2 > /proc/sys/vm/overcommit_memory"
-sudo bash -c "echo 90 > /proc/sys/vm/overcommit_ratio"
+sudo bash -c "echo 0 > /proc/sys/vm/overcommit_memory"
 ```
 
 To make these changes durable, persist them in `/etc/sysctl.conf`.
+Please note that these settings are for the entire OS and not just for ArangoDB. This is another
+reason to stick to the default values if possible.
 
-Another important memory-related setting is `max_map_count`, which controls the maximum number of
+#### maximum number of memory mappings per process (vm.max_map_count)
+
+Another important memory-related setting is `vm.max_map_count`, which controls the maximum number of
 memory mappings a process is allowed to have. The kernel default value is something around 64K, which
 may be too low. Raising this value to 1M or even higher is thus strongly recommended for running
 ArangoDB.
@@ -439,14 +467,73 @@ sudo bash -c "echo 10000000 > /proc/sys/vm/max_map_count"
 
 The change can be made durable by persisting the change in `/etc/sysctl.conf`.
 
-If you want to enable coredumps, it is advisable to use either `ulimit -c unlimited` for the current
-session, or persist the `core` setting in `/etc/security/limits.conf` for the correct user/group.
+####  maximum number of file descriptors per process (nofiles)
 
+The number of open file descriptors per process is important for servers such as ArangoDB.
+It is essential that for the max number of file descriptors is high enough, i.e. at least 8192 
+for RocksDB, and even higher for the MMFiles engine. The higher the better. The setting can be adjusted 
+for the current session by using `ulimit -n`, or permanently by setting the `nofile` value for the 
+correct user/group in `/etc/security/limits.conf`.
+
+Official ArangoDB release packages set this value to a sensible default, so no adjustment needs
+to be made here when using an official package.
+
+#### enabling coredumps (core)
+
+If you want to enable coredumps for debugging purposes, it is advisable to use either `ulimit -c unlimited` 
+for the current session, or persist the `core` setting in `/etc/security/limits.conf` for the correct 
+user/group.
+
+Where your corefiles land is highly OS-/distro-specific, so please consult the OS documentation
+for where to find them later on.
 
 ## ArangoDB configuration
 
 ArangoDB's default settings are reasonable for most use cases. However, a few specific options
 may be fine-tuned.
+
+### How to configure the RocksDB memory usage?
+
+The following settings can be used to keep the memory usage of the RocksDB storage engine under
+control:
+
+* `--rocksdb.block-cache-size`: this value (specified in bytes) controls the size of the in-memory
+  block cache that is used by RocksDB to store uncompressed data blocks. The more memory is allocated
+  here, the more reads may be served from the in-memory cache instead of having to fall back to disk
+  for reads.
+  This setting defaults to something around 30% of physical memory minus 2 GB, but may be increased
+  or decreased if it helps performance or memory usage. A value of `0` will turn the cache off, which
+  is not recommended.
+
+* `--rocksdb.total-write-buffer-size`: total size (in bytes) of in-memory write buffers used by RocksDB. 
+  The more memory is allocated here, the more writes can be buffered in memory, which may help write
+  performance on the lowest LSM level.
+  This setting defaults to something around 40% of physical memory minus 2 GB, but may be increased
+  or decreased if it helps performance or memory usage. A value of `0` will RocksDB use an unrestricted
+  amount of memory for the in-memory write buffers, which is not recommended.
+
+* `--cache.size`: total size of in-memory document cache used for some point lookup operations, e.g.
+  when fetching edges by their `_id` value(s).
+  This setting defaults to something around 25% of physical memory minus 2 GB, but may be increased if
+  it helps performance. Please note that the memory configured here will only be used for certain kinds 
+  of operations (e.g. point lookups of edges). If these types of operations are not part of the workload,
+  there is no need to adjust this value.
+
+To check how much memory is actually used by these cache, the `db._engineStats()` function can be
+used from the arangosh, e.g. using the following snippet:
+
+```js
+stats = db._engineStats(); 
+
+Object.keys(stats).filter(function(key) { 
+  return key.match(/(cache|buffer)/); 
+}).map(function(stat) { 
+  return { [stat] : stats[stat] }; 
+});
+```
+
+This will print a (filtered) list of usage statistics values, which can be used to get an idea
+about how much memory is spent for the individual caches.
 
 ### How to configure the number of threads?
 
